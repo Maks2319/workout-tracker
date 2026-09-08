@@ -15,9 +15,11 @@ model User {
   name      String?
   createdAt DateTime @default(now())
 
-  profile        Profile?
-  workoutPlans   WorkoutPlan[]
-  workoutSessions WorkoutSession[]
+  profile          Profile?
+  workoutPlans     WorkoutPlan[]
+  workoutSessions  WorkoutSession[]
+  customExercises  Exercise[]
+  bodyMeasurements BodyMeasurement[]
 
   @@map("users")
 }
@@ -31,117 +33,176 @@ enum GoalType {
 }
 
 model Profile {
-  id             String    @id @default(cuid())
-  userId         String    @unique
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  age            Int?
-  sex            String?
-  heightCm       Float?
-  weightKg       Float?
-  experienceLevel String?  // beginner / intermediate / advanced
-  goalType       GoalType?
-  goalText       String?
-  targetDate     DateTime?
-  constraints    String?   // травмы/нюансы, например "осторожно с коленом"
+  age             Int?
+  sex             String?
+  heightCm        Float?
+  weightKg        Float?
+  experienceLevel String? // beginner / intermediate / advanced
+  goalType        GoalType?
+  goalText        String?
+  targetDate      DateTime?
+  constraints     String? // травмы/нюансы, например "осторожно с коленом"
 
-  updatedAt      DateTime  @updatedAt
+  updatedAt DateTime @updatedAt
 
   @@map("profiles")
 }
 
-// ---------- Exercise library (global, shared across users) ----------
+// ---------- Body measurements (progress tracking) ----------
+
+model BodyMeasurement {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date         DateTime
+  weightKg     Float?
+  chestCm      Float?
+  waistCm      Float?
+  abdomenCm    Float?
+  hipsCm       Float?
+  thighRightCm Float?
+  thighLeftCm  Float?
+  bicepRightCm Float?
+  bicepLeftCm  Float?
+  calfRightCm  Float?
+  calfLeftCm   Float?
+  notes        String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, date])
+  @@map("body_measurements")
+}
+
+// ---------- Exercise library (global by default, or custom per-user) ----------
 
 enum ExerciseCategory {
-  BASIC          // база: тяжёлые многосуставные (жим лёжа, присед, тяга)
-  COMPOUND       // многофункциональные: многосуставные, но не "большая тройка"
-  ISOLATION      // изоляция: односуставные
+  BASIC // база: тяжёлые многосуставные (жим лёжа, присед, тяга)
+  COMPOUND // многофункциональные: многосуставные, но не "большая тройка"
+  ISOLATION // изоляция: односуставные
 }
 
 model Exercise {
-  id              String            @id @default(cuid())
-  slug            String            @unique
-  name            String
-  category        ExerciseCategory
-  mechanic        String?           // из free-exercise-db: compound / isolation
-  force           String?           // push / pull / static
-  level           String?           // beginner / intermediate / expert
-  equipment       String?
+  id       String           @id @default(cuid())
+  slug     String           @unique
+  name     String
+  category ExerciseCategory
+
+  // Only set for user-created exercises (e.g. gym-specific machines not in the library).
+  // Null = global library exercise, seeded from free-exercise-db.
+  userId   String?
+  user     User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isCustom Boolean @default(false)
+
+  mechanic         String? // из free-exercise-db: compound / isolation
+  force            String? // push / pull / static
+  level            String? // beginner / intermediate / expert
+  equipment        String?
   primaryMuscles   String[]
   secondaryMuscles String[]
   instructions     String[]
-  tips             String?           // нюансы выполнения
-  images           String[]          // URL до картинок (jsDelivr CDN)
+  tips             String? // нюансы выполнения
+  images           String[] // URL до картинок (jsDelivr CDN) или пусто для кастомных
 
   planDayExercises PlanDayExercise[]
 
   @@index([category])
+  @@index([userId])
   @@map("exercises")
 }
 
 // ---------- Workout plans ----------
 
 model WorkoutPlan {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name      String
-  goalType  GoalType?
-  goalText  String?
-  isActive  Boolean  @default(true)
+  id       String    @id @default(cuid())
+  userId   String
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name     String
+  goalType GoalType?
+  goalText String?
+  isActive Boolean   @default(true)
   createdAt DateTime @default(now())
 
-  days      PlanDay[]
-  analyses  AiAnalysis[]
+  days     PlanDay[]
+  analyses AiAnalysis[]
 
   @@index([userId])
   @@map("workout_plans")
 }
 
 model PlanDay {
-  id         String   @id @default(cuid())
-  planId     String
-  plan       WorkoutPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  dayIndex   Int          // 1..N
-  name       String       // "День 1 — Грудь"
+  id       String      @id @default(cuid())
+  planId   String
+  plan     WorkoutPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  dayIndex Int // 1..N
+  name     String // "День 1 — Грудь"
 
-  exercises  PlanDayExercise[]
-  sessions   WorkoutSession[]
+  exercises PlanDayExercise[]
+  sessions  WorkoutSession[]
 
   @@unique([planId, dayIndex])
   @@map("plan_days")
 }
 
 model PlanDayExercise {
-  id               String   @id @default(cuid())
-  planDayId        String
-  planDay          PlanDay  @relation(fields: [planDayId], references: [id], onDelete: Cascade)
-  exerciseId       String
-  exercise         Exercise @relation(fields: [exerciseId], references: [id])
-  orderIndex       Int
-  targetSets       Int
-  targetReps       String   // "8-12" или "max"
-  targetRestSeconds Int
+  id         String   @id @default(cuid())
+  planDayId  String
+  planDay    PlanDay  @relation(fields: [planDayId], references: [id], onDelete: Cascade)
+  exerciseId String
+  exercise   Exercise @relation(fields: [exerciseId], references: [id])
+  orderIndex Int
 
-  setLogs          SetLog[]
+  // Exercises sharing the same non-null supersetGroup within a day are performed
+  // back-to-back with no rest between them; rest applies only after the group.
+  supersetGroup Int?
+
+  note String? // персональные нюансы/подсказки к этому пункту плана
+
+  plannedSets PlanSet[]
+  setLogs     SetLog[]
 
   @@index([planDayId])
   @@map("plan_day_exercises")
 }
 
+enum SetType {
+  WARMUP
+  WORKING
+  DROPSET
+}
+
+model PlanSet {
+  id                String          @id @default(cuid())
+  planDayExerciseId String
+  planDayExercise   PlanDayExercise @relation(fields: [planDayExerciseId], references: [id], onDelete: Cascade)
+  setIndex          Int // порядок внутри упражнения
+  type              SetType
+  targetReps        String // "10", "8-12", "max", "15/15/15" (дропсет)
+  restSeconds       Int
+  note              String?
+
+  @@index([planDayExerciseId])
+  @@map("plan_sets")
+}
+
 // ---------- Workout sessions (actual execution) ----------
 
 model WorkoutSession {
-  id          String    @id @default(cuid())
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  planDayId   String
-  planDay     PlanDay   @relation(fields: [planDayId], references: [id])
-  startedAt   DateTime  @default(now())
-  endedAt     DateTime?
-  notes       String?
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planDayId String
+  planDay   PlanDay   @relation(fields: [planDayId], references: [id])
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  notes     String?
 
-  setLogs     SetLog[]
+  setLogs SetLog[]
 
   @@index([userId])
   @@map("workout_sessions")
@@ -153,7 +214,9 @@ model SetLog {
   session           WorkoutSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   planDayExerciseId String
   planDayExercise   PlanDayExercise @relation(fields: [planDayExerciseId], references: [id])
-  setNumber         Int
+  planSetId         String? // исходный плановый сет, если есть (может отсутствовать для внеплановых)
+  setIndex          Int
+  type              SetType
   weightKg          Float?
   reps              Int?
   completedAt       DateTime        @default(now())
@@ -169,8 +232,8 @@ model AiAnalysis {
   id         String      @id @default(cuid())
   planId     String
   plan       WorkoutPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  stage1Json Json        // нагрузка по группам мышц, прогноз, общая оценка
-  stage2Json Json        // соответствие цели + рекомендации
+  stage1Json Json // нагрузка по группам мышц, прогноз, общая оценка
+  stage2Json Json // соответствие цели + рекомендации
   createdAt  DateTime    @default(now())
 
   @@index([planId])
