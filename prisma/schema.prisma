@@ -1,0 +1,178 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Users & profile ----------
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+
+  profile        Profile?
+  workoutPlans   WorkoutPlan[]
+  workoutSessions WorkoutSession[]
+
+  @@map("users")
+}
+
+enum GoalType {
+  HYPERTROPHY
+  STRENGTH
+  FAT_LOSS
+  ENDURANCE
+  GENERAL_FITNESS
+}
+
+model Profile {
+  id             String    @id @default(cuid())
+  userId         String    @unique
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  age            Int?
+  sex            String?
+  heightCm       Float?
+  weightKg       Float?
+  experienceLevel String?  // beginner / intermediate / advanced
+  goalType       GoalType?
+  goalText       String?
+  targetDate     DateTime?
+  constraints    String?   // травмы/нюансы, например "осторожно с коленом"
+
+  updatedAt      DateTime  @updatedAt
+
+  @@map("profiles")
+}
+
+// ---------- Exercise library (global, shared across users) ----------
+
+enum ExerciseCategory {
+  BASIC          // база: тяжёлые многосуставные (жим лёжа, присед, тяга)
+  COMPOUND       // многофункциональные: многосуставные, но не "большая тройка"
+  ISOLATION      // изоляция: односуставные
+}
+
+model Exercise {
+  id              String            @id @default(cuid())
+  slug            String            @unique
+  name            String
+  category        ExerciseCategory
+  mechanic        String?           // из free-exercise-db: compound / isolation
+  force           String?           // push / pull / static
+  level           String?           // beginner / intermediate / expert
+  equipment       String?
+  primaryMuscles   String[]
+  secondaryMuscles String[]
+  instructions     String[]
+  tips             String?           // нюансы выполнения
+  images           String[]          // URL до картинок (jsDelivr CDN)
+
+  planDayExercises PlanDayExercise[]
+
+  @@index([category])
+  @@map("exercises")
+}
+
+// ---------- Workout plans ----------
+
+model WorkoutPlan {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  goalType  GoalType?
+  goalText  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  days      PlanDay[]
+  analyses  AiAnalysis[]
+
+  @@index([userId])
+  @@map("workout_plans")
+}
+
+model PlanDay {
+  id         String   @id @default(cuid())
+  planId     String
+  plan       WorkoutPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  dayIndex   Int          // 1..N
+  name       String       // "День 1 — Грудь"
+
+  exercises  PlanDayExercise[]
+  sessions   WorkoutSession[]
+
+  @@unique([planId, dayIndex])
+  @@map("plan_days")
+}
+
+model PlanDayExercise {
+  id               String   @id @default(cuid())
+  planDayId        String
+  planDay          PlanDay  @relation(fields: [planDayId], references: [id], onDelete: Cascade)
+  exerciseId       String
+  exercise         Exercise @relation(fields: [exerciseId], references: [id])
+  orderIndex       Int
+  targetSets       Int
+  targetReps       String   // "8-12" или "max"
+  targetRestSeconds Int
+
+  setLogs          SetLog[]
+
+  @@index([planDayId])
+  @@map("plan_day_exercises")
+}
+
+// ---------- Workout sessions (actual execution) ----------
+
+model WorkoutSession {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planDayId   String
+  planDay     PlanDay   @relation(fields: [planDayId], references: [id])
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  notes       String?
+
+  setLogs     SetLog[]
+
+  @@index([userId])
+  @@map("workout_sessions")
+}
+
+model SetLog {
+  id                String          @id @default(cuid())
+  sessionId         String
+  session           WorkoutSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  planDayExerciseId String
+  planDayExercise   PlanDayExercise @relation(fields: [planDayExerciseId], references: [id])
+  setNumber         Int
+  weightKg          Float?
+  reps              Int?
+  completedAt       DateTime        @default(now())
+
+  @@index([planDayExerciseId])
+  @@index([sessionId])
+  @@map("set_logs")
+}
+
+// ---------- AI analysis (cached per plan) ----------
+
+model AiAnalysis {
+  id         String      @id @default(cuid())
+  planId     String
+  plan       WorkoutPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  stage1Json Json        // нагрузка по группам мышц, прогноз, общая оценка
+  stage2Json Json        // соответствие цели + рекомендации
+  createdAt  DateTime    @default(now())
+
+  @@index([planId])
+  @@map("ai_analyses")
+}
