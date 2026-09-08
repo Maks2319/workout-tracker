@@ -28,12 +28,12 @@ export default async function Home() {
   ];
 
   return (
-    <main className="flex flex-1 flex-col items-center px-4 py-8 sm:py-12">
-      <div className="w-full max-w-md">
-        <h1 className="text-2xl font-semibold tracking-tight">
+    <main className="flex flex-1 flex-col px-4 py-8 sm:py-12">
+      <div className="mx-auto w-full max-w-md">
+        <h1 className="text-3xl font-bold tracking-tight text-zinc-900">
           Трекер тренировок
         </h1>
-        <p className="mt-1 text-sm text-zinc-500">
+        <p className="mt-1.5 text-[15px] leading-relaxed text-zinc-500">
           Личный план, прогрессия весов и AI-анализ нагрузки
         </p>
 
@@ -42,10 +42,12 @@ export default async function Home() {
             <Link
               key={s.href}
               href={s.href}
-              className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition-colors active:bg-zinc-100"
+              className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition-shadow active:shadow-none"
             >
-              <div className="font-medium">{s.title}</div>
-              <div className="mt-0.5 text-sm text-zinc-500">
+              <div className="text-[16px] font-semibold text-zinc-900">
+                {s.title}
+              </div>
+              <div className="mt-1 text-[14px] leading-snug text-zinc-500">
                 {s.description}
               </div>
             </Link>

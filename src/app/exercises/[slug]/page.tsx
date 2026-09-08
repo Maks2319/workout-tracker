@@ -2,12 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { MuscleDiagram } from "@/components/MuscleDiagram";
+import { CATEGORY_LABELS, MUSCLE_LABELS } from "@/lib/exercise-labels";
 
-const CATEGORY_LABELS: Record<string, string> = {
-  BASIC: "Базовое",
-  COMPOUND: "Многофункциональное",
-  ISOLATION: "Изоляционное",
-};
+function muscleLabel(m: string) {
+  return MUSCLE_LABELS[m] ?? m;
+}
 
 export default async function ExerciseDetailPage({
   params,
@@ -18,79 +17,90 @@ export default async function ExerciseDetailPage({
   if (!exercise) notFound();
 
   return (
-    <main className="flex flex-1 flex-col px-4 py-6">
+    <main className="flex flex-1 flex-col px-4 py-6 sm:py-8">
       <div className="mx-auto w-full max-w-md">
-        <Link href="/exercises" className="text-sm text-zinc-500">
+        <Link
+          href="/exercises"
+          className="text-sm font-medium text-zinc-500 hover:text-zinc-700"
+        >
           ← К списку
         </Link>
 
-        <h1 className="mt-2 text-xl font-semibold">{exercise.name}</h1>
-        <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-zinc-500">
-          <span className="rounded-full bg-zinc-200 px-2 py-0.5">
+        <h1 className="mt-3 text-2xl font-bold leading-tight tracking-tight text-zinc-900">
+          {exercise.name}
+        </h1>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <span className="rounded-full bg-zinc-900 px-2.5 py-1 text-[12px] font-medium text-white">
             {CATEGORY_LABELS[exercise.category]}
           </span>
           {exercise.equipment && (
-            <span className="rounded-full bg-zinc-200 px-2 py-0.5">
+            <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[12px] font-medium text-zinc-600">
               {exercise.equipment}
             </span>
           )}
           {exercise.level && (
-            <span className="rounded-full bg-zinc-200 px-2 py-0.5">
+            <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[12px] font-medium text-zinc-600">
               {exercise.level}
             </span>
           )}
         </div>
 
         {exercise.images.length > 0 && (
-          <div className="mt-4 flex gap-2 overflow-x-auto">
+          <div className="mt-5 flex gap-2 overflow-x-auto">
             {exercise.images.map((src) => (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 key={src}
                 src={src}
                 alt={exercise.name}
-                className="h-48 shrink-0 rounded-xl border border-zinc-200 object-cover"
+                className="h-52 shrink-0 rounded-2xl border border-zinc-200 object-cover"
               />
             ))}
           </div>
         )}
 
-        <section className="mt-5">
-          <h2 className="text-sm font-medium text-zinc-700">
+        <section className="mt-6">
+          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-zinc-400">
             Задействованные группы мышц
           </h2>
-          <div className="mt-2 rounded-xl border border-zinc-200 bg-white p-3">
+          <div className="mt-2 rounded-2xl border border-zinc-200 bg-white p-4">
             <MuscleDiagram
               primaryMuscles={exercise.primaryMuscles}
               secondaryMuscles={exercise.secondaryMuscles}
             />
-            <div className="mt-2 flex justify-center gap-4 text-xs text-zinc-500">
-              <span className="flex items-center gap-1">
-                <span className="h-2.5 w-2.5 rounded-full bg-[#1d4ed8]" />
-                основные: {exercise.primaryMuscles.join(", ") || "—"}
+            <div className="mt-3 flex flex-col gap-1.5 border-t border-zinc-100 pt-3 text-[13px]">
+              <span className="flex items-start gap-2 text-zinc-700">
+                <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#1d4ed8]" />
+                <span>
+                  <span className="font-medium">Основные: </span>
+                  {exercise.primaryMuscles.map(muscleLabel).join(", ") || "—"}
+                </span>
               </span>
-            </div>
-            <div className="mt-1 flex justify-center gap-4 text-xs text-zinc-500">
-              <span className="flex items-center gap-1">
-                <span className="h-2.5 w-2.5 rounded-full bg-[#93c5fd]" />
-                дополнительные: {exercise.secondaryMuscles.join(", ") || "—"}
+              <span className="flex items-start gap-2 text-zinc-700">
+                <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#93c5fd]" />
+                <span>
+                  <span className="font-medium">Дополнительные: </span>
+                  {exercise.secondaryMuscles.map(muscleLabel).join(", ") || "—"}
+                </span>
               </span>
             </div>
           </div>
         </section>
 
         {exercise.instructions.length > 0 && (
-          <section className="mt-5">
-            <h2 className="text-sm font-medium text-zinc-700">
+          <section className="mt-6">
+            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-zinc-400">
               Как выполнять
             </h2>
-            <ol className="mt-2 flex flex-col gap-2 text-sm text-zinc-700">
+            <ol className="mt-2 flex flex-col gap-3">
               {exercise.instructions.map((step, i) => (
-                <li key={i} className="flex gap-2">
-                  <span className="shrink-0 font-medium text-zinc-400">
-                    {i + 1}.
+                <li key={i} className="flex gap-3">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-[11px] font-semibold text-zinc-500">
+                    {i + 1}
                   </span>
-                  <span>{step}</span>
+                  <span className="text-[15px] leading-relaxed text-zinc-700">
+                    {step}
+                  </span>
                 </li>
               ))}
             </ol>
@@ -98,9 +108,13 @@ export default async function ExerciseDetailPage({
         )}
 
         {exercise.tips && (
-          <section className="mt-5">
-            <h2 className="text-sm font-medium text-zinc-700">Нюансы</h2>
-            <p className="mt-2 text-sm text-zinc-700">{exercise.tips}</p>
+          <section className="mt-6">
+            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-zinc-400">
+              Нюансы
+            </h2>
+            <p className="mt-2 rounded-2xl bg-amber-50 p-3.5 text-[15px] leading-relaxed text-amber-900">
+              {exercise.tips}
+            </p>
           </section>
         )}
       </div>
