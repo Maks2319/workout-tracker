@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
-import { CATEGORY_LABELS, MUSCLE_GROUPS, MUSCLE_LABELS } from "@/lib/exercise-labels";
+import { CATEGORY_LABELS, MUSCLE_GROUPS, MUSCLE_LABELS, displayName } from "@/lib/exercise-labels";
 
 function buildHref(params: {
   q?: string;
@@ -26,7 +26,12 @@ export default async function ExercisesPage({
 
   const where: Prisma.ExerciseWhereInput = {
     ...(query
-      ? { name: { contains: query, mode: "insensitive" as const } }
+      ? {
+          OR: [
+            { name: { contains: query, mode: "insensitive" as const } },
+            { nameRu: { contains: query, mode: "insensitive" as const } },
+          ],
+        }
       : {}),
     ...(categoryFilter ? { category: categoryFilter as never } : {}),
     ...(muscleFilter ? { primaryMuscles: { has: muscleFilter } } : {}),
@@ -36,7 +41,15 @@ export default async function ExercisesPage({
     where,
     orderBy: { name: "asc" },
     take: 60,
-    select: { id: true, slug: true, name: true, category: true, images: true, primaryMuscles: true },
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+      nameRu: true,
+      category: true,
+      images: true,
+      primaryMuscles: true,
+    },
   });
 
   return (
@@ -133,7 +146,7 @@ export default async function ExercisesPage({
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={ex.images[0]}
-                    alt={ex.name}
+                    alt={displayName(ex)}
                     className="h-full w-full object-cover"
                     loading="lazy"
                   />
@@ -141,7 +154,7 @@ export default async function ExercisesPage({
               </div>
               <div className="p-3">
                 <div className="line-clamp-2 text-[14px] font-semibold leading-snug text-zinc-900">
-                  {ex.name}
+                  {displayName(ex)}
                 </div>
                 <div className="mt-1.5 flex flex-wrap gap-1">
                   <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-500">

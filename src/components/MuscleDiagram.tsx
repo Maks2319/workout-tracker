@@ -26,18 +26,18 @@ export function MuscleDiagram({
   ].filter((d) => d.muscles.length > 0);
 
   return (
-    <div className="flex items-center justify-center gap-2">
+    <div className="flex items-center justify-center gap-4">
       <Model
         type="anterior"
         data={data}
         highlightedColors={HIGHLIGHTED_COLORS}
-        style={{ width: "9rem" }}
+        style={{ width: "11.5rem" }}
       />
       <Model
         type="posterior"
         data={data}
         highlightedColors={HIGHLIGHTED_COLORS}
-        style={{ width: "9rem" }}
+        style={{ width: "11.5rem" }}
       />
     </div>
   );

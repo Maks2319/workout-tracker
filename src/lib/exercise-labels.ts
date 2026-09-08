@@ -28,3 +28,17 @@ export const MUSCLE_GROUPS: { value: string; label: string }[] = [
 export const MUSCLE_LABELS: Record<string, string> = Object.fromEntries(
   MUSCLE_GROUPS.map((m) => [m.value, m.label]),
 );
+
+// Library exercises are seeded in English (free-exercise-db) and get a nameRu
+// backfilled by prisma/apply-name-translations.ts; custom exercises are
+// authored in Russian directly, so name is already the display name.
+export function displayName(ex: { name: string; nameRu?: string | null }): string {
+  return ex.nameRu ?? ex.name;
+}
+
+export function displayInstructions(ex: {
+  instructions: string[];
+  instructionsRu: string[];
+}): string[] {
+  return ex.instructionsRu.length > 0 ? ex.instructionsRu : ex.instructions;
+}

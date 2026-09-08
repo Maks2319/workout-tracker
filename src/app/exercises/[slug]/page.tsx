@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { MuscleDiagram } from "@/components/MuscleDiagram";
 import { BackLink } from "@/components/BackLink";
-import { CATEGORY_LABELS, MUSCLE_LABELS } from "@/lib/exercise-labels";
+import { CATEGORY_LABELS, MUSCLE_LABELS, displayName, displayInstructions } from "@/lib/exercise-labels";
 
 function muscleLabel(m: string) {
   return MUSCLE_LABELS[m] ?? m;
@@ -22,7 +22,7 @@ export default async function ExerciseDetailPage({
         <BackLink fallbackHref="/exercises">← К списку</BackLink>
 
         <h1 className="mt-3 text-2xl font-bold leading-tight tracking-tight text-zinc-900">
-          {exercise.name}
+          {displayName(exercise)}
         </h1>
         <div className="mt-2 flex flex-wrap gap-1.5">
           <span className="rounded-full bg-zinc-900 px-2.5 py-1 text-[12px] font-medium text-white">
@@ -47,7 +47,7 @@ export default async function ExerciseDetailPage({
               <img
                 key={src}
                 src={src}
-                alt={exercise.name}
+                alt={displayName(exercise)}
                 className="h-52 shrink-0 rounded-2xl border border-zinc-200 object-cover"
               />
             ))}
@@ -84,11 +84,18 @@ export default async function ExerciseDetailPage({
 
         {exercise.instructions.length > 0 && (
           <section className="mt-6">
-            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-zinc-400">
-              Как выполнять
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-[13px] font-semibold uppercase tracking-wide text-zinc-400">
+                Как выполнять
+              </h2>
+              {exercise.instructionsRu.length === 0 && (
+                <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-400">
+                  пока на английском
+                </span>
+              )}
+            </div>
             <ol className="mt-2 flex flex-col gap-3">
-              {exercise.instructions.map((step, i) => (
+              {displayInstructions(exercise).map((step, i) => (
                 <li key={i} className="flex gap-3">
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-[11px] font-semibold text-zinc-500">
                     {i + 1}

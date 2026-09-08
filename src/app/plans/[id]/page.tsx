@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { BackLink } from "@/components/BackLink";
-import { CATEGORY_LABELS } from "@/lib/exercise-labels";
+import { CATEGORY_LABELS, displayName } from "@/lib/exercise-labels";
 import { GOAL_TYPE_LABELS, SET_TYPE_LABELS, groupSets } from "@/lib/plan-display";
 
 export default async function PlanDetailPage({
@@ -107,7 +107,7 @@ function ExerciseCard({
   pde: {
     id: string;
     note: string | null;
-    exercise: { slug: string; name: string; category: string; isCustom: boolean };
+    exercise: { slug: string; name: string; nameRu: string | null; category: string; isCustom: boolean };
     plannedSets: { setIndex: number; type: "WARMUP" | "WORKING" | "DROPSET"; targetReps: string; restSeconds: number }[];
   };
 }) {
@@ -119,7 +119,7 @@ function ExerciseCard({
         href={`/exercises/${pde.exercise.slug}`}
         className="text-[15px] font-semibold leading-snug text-zinc-900"
       >
-        {pde.exercise.name}
+        {displayName(pde.exercise)}
       </Link>
       <div className="mt-1 flex flex-wrap gap-1">
         <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-500">

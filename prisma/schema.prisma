@@ -91,6 +91,7 @@ model Exercise {
   id       String           @id @default(cuid())
   slug     String           @unique
   name     String
+  nameRu   String? // русский перевод названия (для библиотечных упражнений)
   category ExerciseCategory
 
   // Only set for user-created exercises (e.g. gym-specific machines not in the library).
@@ -106,6 +107,7 @@ model Exercise {
   primaryMuscles   String[]
   secondaryMuscles String[]
   instructions     String[]
+  instructionsRu   String[] // русский перевод инструкций (заполнено не для всех — переводим по мере надобности)
   tips             String? // нюансы выполнения
   images           String[] // URL до картинок (jsDelivr CDN) или пусто для кастомных
 
