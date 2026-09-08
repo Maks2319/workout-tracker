@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { BottomNav } from "@/components/BottomNav";
 import "./globals.css";
 
 const inter = Inter({
@@ -29,7 +30,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="ru" className={`${inter.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col bg-zinc-50 font-sans text-zinc-900">
-        {children}
+        <div className="flex flex-1 flex-col pb-16">{children}</div>
+        <BottomNav />
       </body>
     </html>
   );

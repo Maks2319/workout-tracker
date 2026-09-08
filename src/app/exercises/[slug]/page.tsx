@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { MuscleDiagram } from "@/components/MuscleDiagram";
+import { BackLink } from "@/components/BackLink";
 import { CATEGORY_LABELS, MUSCLE_LABELS } from "@/lib/exercise-labels";
 
 function muscleLabel(m: string) {
@@ -19,12 +19,7 @@ export default async function ExerciseDetailPage({
   return (
     <main className="flex flex-1 flex-col px-4 py-6 sm:py-8">
       <div className="mx-auto w-full max-w-md">
-        <Link
-          href="/exercises"
-          className="text-sm font-medium text-zinc-500 hover:text-zinc-700"
-        >
-          ← К списку
-        </Link>
+        <BackLink fallbackHref="/exercises">← К списку</BackLink>
 
         <h1 className="mt-3 text-2xl font-bold leading-tight tracking-tight text-zinc-900">
           {exercise.name}

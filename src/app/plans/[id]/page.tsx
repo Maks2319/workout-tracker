@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { BackLink } from "@/components/BackLink";
 import { CATEGORY_LABELS } from "@/lib/exercise-labels";
 import { GOAL_TYPE_LABELS, SET_TYPE_LABELS, groupSets } from "@/lib/plan-display";
 
@@ -29,9 +30,7 @@ export default async function PlanDetailPage({
   return (
     <main className="flex flex-1 flex-col px-4 py-6 sm:py-8">
       <div className="mx-auto w-full max-w-md">
-        <Link href="/plans" className="text-sm font-medium text-zinc-500 hover:text-zinc-700">
-          ← К планам
-        </Link>
+        <BackLink fallbackHref="/plans">← К планам</BackLink>
 
         <h1 className="mt-3 text-2xl font-bold tracking-tight text-zinc-900">
           {plan.name}
