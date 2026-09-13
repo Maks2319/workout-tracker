@@ -2,8 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { BackLink } from "@/components/BackLink";
-import { CATEGORY_LABELS, displayName } from "@/lib/exercise-labels";
+import { MuscleLoadMap } from "@/components/MuscleLoadMap";
+import { CATEGORY_LABELS, MUSCLE_GROUPS, MUSCLE_LABELS, displayName } from "@/lib/exercise-labels";
 import { GOAL_TYPE_LABELS, SET_TYPE_LABELS, groupSets } from "@/lib/plan-display";
+import { computeMuscleLoad, mergeLoads, toIntensityLevels } from "@/lib/muscle-load";
 
 export default async function PlanDetailPage({
   params,
@@ -27,6 +29,11 @@ export default async function PlanDetailPage({
 
   if (!plan) notFound();
 
+  const dayLoads = plan.days.map((day) => computeMuscleLoad(day.exercises));
+  const weeklyLoad = mergeLoads(dayLoads);
+  const weeklySorted = Object.entries(weeklyLoad).sort((a, b) => b[1] - a[1]);
+  const weakMuscles = MUSCLE_GROUPS.filter((m) => (weeklyLoad[m.value] ?? 0) < 3);
+
   return (
     <main className="flex flex-1 flex-col px-4 py-6 sm:py-8">
       <div className="mx-auto w-full max-w-md">
@@ -47,8 +54,45 @@ export default async function PlanDetailPage({
           <p className="mt-2 text-[14px] leading-relaxed text-zinc-500">{plan.goalText}</p>
         )}
 
+        <section className="mt-6 rounded-2xl border border-zinc-200 bg-white p-4">
+          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-zinc-400">
+            Мышечная карта за неделю
+          </h2>
+          <div className="mt-3">
+            <MuscleLoadMap levels={toIntensityLevels(weeklyLoad)} size="10rem" />
+          </div>
+          <div className="mt-3 flex items-center justify-center gap-3 text-[11px] text-zinc-400">
+            <span className="flex items-center gap-1">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#dbeafe]" /> меньше
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#1d4ed8]" /> больше нагрузки
+            </span>
+          </div>
+
+          {weeklySorted.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1">
+              {weeklySorted.slice(0, 6).map(([m, v]) => (
+                <span
+                  key={m}
+                  className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600"
+                >
+                  {MUSCLE_LABELS[m] ?? m} — {Math.round(v * 10) / 10}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {weakMuscles.length > 0 && (
+            <p className="mt-3 text-[13px] leading-relaxed text-zinc-500">
+              <span className="font-medium text-zinc-700">Слабо задействованы: </span>
+              {weakMuscles.map((m) => m.label).join(", ")} — учесть в следующем цикле.
+            </p>
+          )}
+        </section>
+
         <div className="mt-6 flex flex-col gap-8">
-          {plan.days.map((day) => {
+          {plan.days.map((day, dayIndex) => {
             // Group consecutive exercises sharing a supersetGroup so they render as one block.
             const blocks: (typeof day.exercises)[] = [];
             for (const ex of day.exercises) {
@@ -66,9 +110,12 @@ export default async function PlanDetailPage({
 
             return (
               <section key={day.id}>
-                <h2 className="text-[13px] font-semibold uppercase tracking-wide text-zinc-400">
-                  {day.name}
-                </h2>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-[13px] font-semibold uppercase tracking-wide text-zinc-400">
+                    {day.name}
+                  </h2>
+                  <MuscleLoadMap levels={toIntensityLevels(dayLoads[dayIndex])} size="3.2rem" />
+                </div>
                 <div className="mt-2 flex flex-col gap-2.5">
                   {blocks.map((block) => (
                     <div
