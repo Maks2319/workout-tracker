@@ -93,3 +93,36 @@ export function buildWorkoutSteps(dayExercises: PlanDayExerciseLike[]): WorkoutS
 
   return steps;
 }
+
+// Groups the flat step list into per-exercise (or per-superset-pair) runs,
+// so the UI can show one exercise's full set checklist at a time instead of
+// one set per screen.
+export function groupStepsIntoSegments(steps: WorkoutStep[]): WorkoutStep[][] {
+  const segments: WorkoutStep[][] = [];
+  for (const step of steps) {
+    const key = step.entries.map((e) => e.planDayExerciseId).join("|");
+    const last = segments[segments.length - 1];
+    const lastKey = last?.[0].entries.map((e) => e.planDayExerciseId).join("|");
+    if (last && lastKey === key) {
+      last.push(step);
+    } else {
+      segments.push([step]);
+    }
+  }
+  return segments;
+}
+
+// Finds the first not-yet-logged row so a resumed session reopens exactly
+// where it left off, with completed rows still showing as checked.
+export function findResumePosition(
+  segments: WorkoutStep[][],
+  loggedPlanSetIds: Set<string>,
+): { segmentIndex: number; rowIndex: number } {
+  for (let s = 0; s < segments.length; s++) {
+    for (let r = 0; r < segments[s].length; r++) {
+      const allLogged = segments[s][r].entries.every((e) => loggedPlanSetIds.has(e.planSetId));
+      if (!allLogged) return { segmentIndex: s, rowIndex: r };
+    }
+  }
+  return { segmentIndex: segments.length, rowIndex: 0 };
+}

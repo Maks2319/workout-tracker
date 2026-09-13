@@ -7,35 +7,35 @@ import { logSets, finishSession, type LoggedSetEntry } from "@/app/workout/actio
 
 const SET_TYPE_LABELS: Record<string, string> = {
   WARMUP: "Разминка",
-  WORKING: "Рабочий подход",
+  WORKING: "Рабочий",
   DROPSET: "Дропсет",
 };
 
-type Phase = "input" | "resting" | "finish";
-
 type FieldValue = { weight: string; reps: string };
+type ExistingLogs = Record<string, { weightKg: number | null; reps: number | null }>;
+type RowStatus = "done" | "active" | "locked";
 
 export function WorkoutRunner({
   sessionId,
   dayName,
-  steps,
-  startIndex,
+  segments,
+  existingLogs,
+  startSegmentIndex,
+  startRowIndex,
 }: {
   sessionId: string;
   dayName: string;
-  steps: WorkoutStep[];
-  startIndex: number;
+  segments: WorkoutStep[][];
+  existingLogs: ExistingLogs;
+  startSegmentIndex: number;
+  startRowIndex: number;
 }) {
-  const [index, setIndex] = useState(startIndex);
-  const [phase, setPhase] = useState<Phase>(startIndex >= steps.length ? "finish" : "input");
-  const [restRemaining, setRestRemaining] = useState(0);
-  const [restTotal, setRestTotal] = useState(0);
-  const [, startTransition] = useTransition();
+  const [segmentIndex, setSegmentIndex] = useState(startSegmentIndex);
+  const [phase, setPhase] = useState<"exercise" | "finish">(
+    startSegmentIndex >= segments.length ? "finish" : "exercise",
+  );
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
-
-  const step = index < steps.length ? steps[index] : null;
-  const totalSets = steps.length;
 
   // Keep the screen on for the duration of the workout.
   useEffect(() => {
@@ -82,60 +82,16 @@ export function WorkoutRunner({
     if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
   }, []);
 
-  const goToNext = useCallback(() => {
-    setIndex((i) => {
+  const goToNextSegment = useCallback(() => {
+    setSegmentIndex((i) => {
       const next = i + 1;
-      setPhase(next >= steps.length ? "finish" : "input");
+      setPhase(next >= segments.length ? "finish" : "exercise");
       return next;
     });
-  }, [steps.length]);
+  }, [segments.length]);
 
-  // Rest countdown — the zero-check and transition happen inside the timer
-  // callback (not synchronously in the effect body) so they only ever fire
-  // in response to the external clock ticking.
-  useEffect(() => {
-    if (phase !== "resting") return;
-    const t = setTimeout(() => {
-      if (restRemaining <= 1) {
-        beep();
-        goToNext();
-      } else {
-        setRestRemaining((r) => r - 1);
-      }
-    }, 1000);
-    return () => clearTimeout(t);
-  }, [phase, restRemaining, beep, goToNext]);
-
-  function handleDone(values: FieldValue[]) {
-    if (!step) return;
-    const entries: LoggedSetEntry[] = step.entries.map((e, i) => ({
-      planDayExerciseId: e.planDayExerciseId,
-      planSetId: e.planSetId,
-      setIndex: e.setIndex,
-      type: e.type,
-      weightKg: values[i]?.weight ? parseFloat(values[i].weight.replace(",", ".")) : null,
-      reps: values[i]?.reps ? parseInt(values[i].reps, 10) : null,
-    }));
-    startTransition(() => {
-      logSets(sessionId, entries);
-    });
-
-    if (index === steps.length - 1) {
-      goToNext();
-      return;
-    }
-    const rest = step.entries[step.entries.length - 1].restSeconds;
-    setRestRemaining(rest);
-    setRestTotal(rest);
-    setPhase("resting");
-  }
-
-  function handleSkipRest() {
-    beep();
-    goToNext();
-  }
-
-  const nextStep = steps[index + 1];
+  const segment = segmentIndex < segments.length ? segments[segmentIndex] : null;
+  const isLastSegment = segmentIndex === segments.length - 1;
 
   return (
     <main className="flex flex-1 flex-col px-4 py-6 sm:py-8">
@@ -146,7 +102,7 @@ export function WorkoutRunner({
               {dayName}
             </div>
             <div className="text-sm text-zinc-500">
-              Шаг {Math.min(index + 1, totalSets)} из {totalSets}
+              Упражнение {Math.min(segmentIndex + 1, segments.length)} из {segments.length}
             </div>
           </div>
           {phase !== "finish" && (
@@ -159,139 +115,323 @@ export function WorkoutRunner({
           )}
         </div>
 
-        {phase === "input" && step && (
-          <StepInputs key={index} step={step} onDone={handleDone} />
+        {phase === "exercise" && segment && (
+          <ExerciseSegment
+            key={segmentIndex}
+            sessionId={sessionId}
+            segment={segment}
+            existingLogs={existingLogs}
+            startRowIndex={segmentIndex === startSegmentIndex ? startRowIndex : 0}
+            isLastSegment={isLastSegment}
+            beep={beep}
+            onSegmentComplete={goToNextSegment}
+          />
         )}
 
-        {phase === "resting" && (
-          <div className="mt-5 flex flex-1 flex-col items-center justify-center gap-6 text-center">
-            <div className="text-sm font-medium text-zinc-500">Отдых</div>
-            <div className="text-7xl font-bold tabular-nums text-zinc-900">
-              {Math.floor(restRemaining / 60)}:{String(restRemaining % 60).padStart(2, "0")}
-            </div>
-            <div className="h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-zinc-200">
-              <div
-                className="h-full bg-zinc-900 transition-all"
-                style={{
-                  width: `${restTotal > 0 ? (100 * (restTotal - restRemaining)) / restTotal : 100}%`,
-                }}
-              />
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setRestRemaining((r) => r + 15)}
-                className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-600"
-              >
-                +15с
-              </button>
-              <button
-                onClick={() => setRestRemaining((r) => Math.max(0, r - 15))}
-                className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-600"
-              >
-                −15с
-              </button>
-            </div>
-            {nextStep && (
-              <div className="mt-2 text-sm text-zinc-400">
-                Далее: {nextStep.entries.map((e) => e.exerciseName).join(" + ")}
-              </div>
-            )}
-            <button
-              onClick={handleSkipRest}
-              className="mt-4 rounded-2xl bg-zinc-900 px-8 py-3 text-[15px] font-semibold text-white active:bg-zinc-800"
-            >
-              Пропустить отдых
-            </button>
-          </div>
-        )}
-
-        {phase === "finish" && (
-          <FinishForm sessionId={sessionId} />
-        )}
+        {phase === "finish" && <FinishForm sessionId={sessionId} />}
       </div>
     </main>
   );
 }
 
-function StepInputs({
-  step,
-  onDone,
+function ExerciseSegment({
+  sessionId,
+  segment,
+  existingLogs,
+  startRowIndex,
+  isLastSegment,
+  beep,
+  onSegmentComplete,
 }: {
-  step: WorkoutStep;
-  onDone: (values: FieldValue[]) => void;
+  sessionId: string;
+  segment: WorkoutStep[];
+  existingLogs: ExistingLogs;
+  startRowIndex: number;
+  isLastSegment: boolean;
+  beep: () => void;
+  onSegmentComplete: () => void;
 }) {
-  const [values, setValues] = useState<FieldValue[]>(
-    step.entries.map(() => ({ weight: "", reps: "" })),
+  const rows = segment;
+  const isSuperset = rows[0].kind === "superset";
+
+  const [rowIndex, setRowIndex] = useState(startRowIndex);
+  const [completed, setCompleted] = useState<boolean[]>(() => rows.map((_, i) => i < startRowIndex));
+  const [values, setValues] = useState<FieldValue[][]>(() =>
+    rows.map((row) =>
+      row.entries.map((e) => {
+        const log = existingLogs[e.planSetId];
+        return {
+          weight: log?.weightKg != null ? String(log.weightKg) : "",
+          reps: log?.reps != null ? String(log.reps) : "",
+        };
+      }),
+    ),
   );
+  const [resting, setResting] = useState(false);
+  const [restRemaining, setRestRemaining] = useState(0);
+  const [restTotal, setRestTotal] = useState(0);
+  const [, startTransition] = useTransition();
+
+  const advanceAfterRow = useCallback(
+    (i: number) => {
+      if (i + 1 >= rows.length) {
+        onSegmentComplete();
+      } else {
+        setRowIndex(i + 1);
+      }
+    },
+    [rows.length, onSegmentComplete],
+  );
+
+  // Rest countdown — zero-check happens inside the timer callback, not
+  // synchronously in the effect body.
+  useEffect(() => {
+    if (!resting) return;
+    const t = setTimeout(() => {
+      if (restRemaining <= 1) {
+        beep();
+        setResting(false);
+        advanceAfterRow(rowIndex);
+      } else {
+        setRestRemaining((r) => r - 1);
+      }
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [resting, restRemaining, beep, rowIndex, advanceAfterRow]);
+
+  function handleConfirmRow(i: number) {
+    const row = rows[i];
+    const entries: LoggedSetEntry[] = row.entries.map((e, k) => ({
+      planDayExerciseId: e.planDayExerciseId,
+      planSetId: e.planSetId,
+      setIndex: e.setIndex,
+      type: e.type,
+      weightKg: values[i][k]?.weight ? parseFloat(values[i][k].weight.replace(",", ".")) : null,
+      reps: values[i][k]?.reps ? parseInt(values[i][k].reps, 10) : null,
+    }));
+    startTransition(() => {
+      logSets(sessionId, entries);
+    });
+
+    setCompleted((c) => {
+      const next = [...c];
+      next[i] = true;
+      return next;
+    });
+
+    if (i === rows.length - 1 && isLastSegment) {
+      onSegmentComplete();
+      return;
+    }
+    const rest = row.entries[row.entries.length - 1].restSeconds;
+    setRestTotal(rest);
+    setRestRemaining(rest);
+    setResting(true);
+  }
+
+  function handleSkipRest() {
+    beep();
+    setResting(false);
+    advanceAfterRow(rowIndex);
+  }
+
+  const first = rows[0].entries[0];
+  const second = isSuperset ? rows[0].entries[1] : null;
 
   return (
     <div className="mt-5 flex flex-1 flex-col gap-4">
-      {step.kind === "superset" && (
+      {isSuperset && (
         <div className="rounded-xl bg-amber-50 px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wide text-amber-700">
           Суперсет — без отдыха между упражнениями
         </div>
       )}
-      {step.entries.map((entry, i) => (
-        <div key={entry.planSetId} className="rounded-2xl border border-zinc-200 bg-white p-4">
-          <Link
-            href={`/exercises/${entry.exerciseSlug}`}
-            className="text-lg font-semibold text-zinc-900"
-          >
-            {entry.exerciseName}
-          </Link>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-[13px] text-zinc-500">
-            <span>{SET_TYPE_LABELS[entry.type]}</span>
-            <span>· цель: {entry.targetReps}</span>
+
+      <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+        <Link href={`/exercises/${first.exerciseSlug}`} className="text-lg font-semibold text-zinc-900">
+          {first.exerciseName}
+        </Link>
+        {first.exerciseNote && (
+          <p className="mt-1.5 rounded-lg bg-zinc-50 p-2 text-[13px] leading-relaxed text-zinc-600">
+            {first.exerciseNote}
+          </p>
+        )}
+        {second && (
+          <>
+            <Link
+              href={`/exercises/${second.exerciseSlug}`}
+              className="mt-3 block text-lg font-semibold text-zinc-900"
+            >
+              + {second.exerciseName}
+            </Link>
+            {second.exerciseNote && (
+              <p className="mt-1.5 rounded-lg bg-zinc-50 p-2 text-[13px] leading-relaxed text-zinc-600">
+                {second.exerciseNote}
+              </p>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {rows.map((row, i) => {
+          const status: RowStatus = completed[i] ? "done" : i === rowIndex ? "active" : "locked";
+          return (
+            <SetRow
+              key={i}
+              row={row}
+              index={i}
+              isSuperset={isSuperset}
+              status={status}
+              values={values[i]}
+              onChange={(k, field, val) =>
+                setValues((v) => {
+                  const next = v.map((row) => [...row]);
+                  next[i][k] = { ...next[i][k], [field]: val };
+                  return next;
+                })
+              }
+              onConfirm={() => handleConfirmRow(i)}
+            />
+          );
+        })}
+      </div>
+
+      {resting && (
+        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-center">
+          <div className="text-xs font-medium text-zinc-500">Отдых</div>
+          <div className="mt-1 text-4xl font-bold tabular-nums text-zinc-900">
+            {Math.floor(restRemaining / 60)}:{String(restRemaining % 60).padStart(2, "0")}
           </div>
-          {entry.exerciseNote && (
-            <p className="mt-2 rounded-lg bg-zinc-50 p-2 text-[13px] leading-relaxed text-zinc-600">
-              {entry.exerciseNote}
-            </p>
-          )}
-          <div className="mt-3 flex gap-3">
-            <label className="flex-1">
-              <span className="text-xs font-medium text-zinc-400">Вес, кг</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="0.5"
-                value={values[i]?.weight ?? ""}
-                onChange={(e) =>
-                  setValues((v) => {
-                    const next = [...v];
-                    next[i] = { ...next[i], weight: e.target.value };
-                    return next;
-                  })
-                }
-                className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-[16px]"
-              />
-            </label>
-            <label className="flex-1">
-              <span className="text-xs font-medium text-zinc-400">Повторы</span>
-              <input
-                type="number"
-                inputMode="numeric"
-                value={values[i]?.reps ?? ""}
-                onChange={(e) =>
-                  setValues((v) => {
-                    const next = [...v];
-                    next[i] = { ...next[i], reps: e.target.value };
-                    return next;
-                  })
-                }
-                className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-[16px]"
-              />
-            </label>
+          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200">
+            <div
+              className="h-full bg-zinc-900 transition-all"
+              style={{
+                width: `${restTotal > 0 ? (100 * (restTotal - restRemaining)) / restTotal : 100}%`,
+              }}
+            />
+          </div>
+          <div className="mt-3 flex justify-center gap-2">
+            <button
+              onClick={() => setRestRemaining((r) => r + 15)}
+              className="rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-600"
+            >
+              +15с
+            </button>
+            <button
+              onClick={() => setRestRemaining((r) => Math.max(0, r - 15))}
+              className="rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-600"
+            >
+              −15с
+            </button>
+            <button
+              onClick={handleSkipRest}
+              className="rounded-full bg-zinc-900 px-4 py-1.5 text-xs font-semibold text-white"
+            >
+              Пропустить
+            </button>
           </div>
         </div>
-      ))}
+      )}
+    </div>
+  );
+}
 
-      <button
-        onClick={() => onDone(values)}
-        className="mt-auto rounded-2xl bg-zinc-900 py-4 text-[16px] font-semibold text-white active:bg-zinc-800"
-      >
-        Подход выполнен
-      </button>
+function SetRow({
+  row,
+  index,
+  isSuperset,
+  status,
+  values,
+  onChange,
+  onConfirm,
+}: {
+  row: WorkoutStep;
+  index: number;
+  isSuperset: boolean;
+  status: RowStatus;
+  values: FieldValue[];
+  onChange: (entryIndex: number, field: "weight" | "reps", value: string) => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div
+      className={`rounded-xl border p-3 transition-colors ${
+        status === "active"
+          ? "border-zinc-900 bg-white"
+          : status === "done"
+            ? "border-zinc-200 bg-zinc-50"
+            : "border-zinc-100 bg-zinc-50/60"
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-[13px]">
+          <span
+            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
+              status === "done" ? "bg-emerald-600 text-white" : "bg-zinc-200 text-zinc-500"
+            }`}
+          >
+            {status === "done" ? "✓" : index + 1}
+          </span>
+          <span className={status === "locked" ? "text-zinc-300" : "font-medium text-zinc-700"}>
+            Подход {index + 1}
+          </span>
+          <span className={status === "locked" ? "text-zinc-300" : "text-zinc-400"}>
+            {SET_TYPE_LABELS[row.entries[0].type]} · цель {row.entries[0].targetReps}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-2 flex flex-col gap-2">
+        {row.entries.map((entry, k) => (
+          <div key={k} className="flex items-center gap-2">
+            {isSuperset && (
+              <span
+                className={`w-24 shrink-0 truncate text-[12px] ${
+                  status === "locked" ? "text-zinc-300" : "text-zinc-500"
+                }`}
+              >
+                {entry.exerciseName}
+              </span>
+            )}
+            {status === "done" ? (
+              <span className="text-[15px] font-medium text-zinc-700">
+                {values[k]?.weight || "—"} кг × {values[k]?.reps || "—"}
+              </span>
+            ) : status === "active" ? (
+              <>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.5"
+                  placeholder="кг"
+                  value={values[k]?.weight ?? ""}
+                  onChange={(e) => onChange(k, "weight", e.target.value)}
+                  className="w-20 rounded-lg border border-zinc-300 px-2.5 py-1.5 text-[15px]"
+                />
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  placeholder="повторы"
+                  value={values[k]?.reps ?? ""}
+                  onChange={(e) => onChange(k, "reps", e.target.value)}
+                  className="w-20 rounded-lg border border-zinc-300 px-2.5 py-1.5 text-[15px]"
+                />
+              </>
+            ) : (
+              <span className="text-[13px] text-zinc-300">—</span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {status === "active" && (
+        <button
+          onClick={onConfirm}
+          className="mt-3 w-full rounded-xl bg-zinc-900 py-2.5 text-[14px] font-semibold text-white active:bg-zinc-800"
+        >
+          ✓ Подход выполнен
+        </button>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { buildWorkoutSteps } from "@/lib/workout-steps";
+import { buildWorkoutSteps, groupStepsIntoSegments, findResumePosition } from "@/lib/workout-steps";
 import { WorkoutRunner } from "@/components/WorkoutRunner";
 
 export default async function WorkoutSessionPage({
@@ -27,18 +27,24 @@ export default async function WorkoutSessionPage({
   if (session.endedAt) redirect(`/workout/${sessionId}/summary`);
 
   const steps = buildWorkoutSteps(session.planDay.exercises);
-  const loggedPlanSetIds = new Set(session.setLogs.map((l) => l.planSetId));
+  const segments = groupStepsIntoSegments(steps);
+  const loggedSetLogs = session.setLogs.filter((l) => l.planSetId !== null);
+  const loggedPlanSetIds = new Set(loggedSetLogs.map((l) => l.planSetId!));
+  const { segmentIndex, rowIndex } = findResumePosition(segments, loggedPlanSetIds);
 
-  const startIndex = steps.findIndex((step) =>
-    step.entries.some((e) => !loggedPlanSetIds.has(e.planSetId)),
-  );
+  const existingLogs: Record<string, { weightKg: number | null; reps: number | null }> = {};
+  for (const log of loggedSetLogs) {
+    existingLogs[log.planSetId!] = { weightKg: log.weightKg, reps: log.reps };
+  }
 
   return (
     <WorkoutRunner
       sessionId={session.id}
       dayName={session.planDay.name}
-      steps={steps}
-      startIndex={startIndex === -1 ? steps.length : startIndex}
+      segments={segments}
+      existingLogs={existingLogs}
+      startSegmentIndex={segmentIndex}
+      startRowIndex={rowIndex}
     />
   );
 }
