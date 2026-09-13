@@ -202,7 +202,8 @@ model WorkoutSession {
   planDay   PlanDay   @relation(fields: [planDayId], references: [id])
   startedAt DateTime  @default(now())
   endedAt   DateTime?
-  notes     String?
+  rating    Int? // общее впечатление от тренировки, 1-5
+  notes     String? // свободный комментарий
 
   setLogs SetLog[]
 
