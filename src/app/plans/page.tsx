@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/current-user";
 import { GOAL_TYPE_LABELS } from "@/lib/plan-display";
 
+export const dynamic = "force-dynamic";
+
 export default async function PlansPage() {
   const user = await getCurrentUser();
 

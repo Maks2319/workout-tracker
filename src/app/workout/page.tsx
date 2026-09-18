@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/current-user";
 import { startSession } from "./actions";
 
+export const dynamic = "force-dynamic";
+
 export default async function WorkoutPage() {
   const user = await getCurrentUser();
 
